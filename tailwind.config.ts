@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,11 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				brand: {
+					purple: '#9b87f5',
+					'purple-dark': '#7E69AB',
+					'purple-light': '#E5DEFF',
 				}
 			},
 			borderRadius: {
@@ -84,11 +90,16 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'confetti': {
+					'0%': { transform: 'translateY(0) rotate(0)', opacity: '1' },
+					'100%': { transform: 'translateY(100vh) rotate(720deg)', opacity: '0' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'confetti': 'confetti 5s ease-in-out forwards'
 			}
 		}
 	},

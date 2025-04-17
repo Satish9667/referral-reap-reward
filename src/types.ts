@@ -6,6 +6,8 @@ export interface User {
   referralCode: string;
   points: number;
   referredBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Reward {
@@ -21,6 +23,7 @@ export interface Referral {
   referrerCode: string;
   refereeEmail: string;
   date: string;
+  status?: 'pending' | 'completed';
 }
 
 export interface RedemptionHistory {
@@ -30,4 +33,5 @@ export interface RedemptionHistory {
   rewardName: string;
   pointsCost: number;
   date: string;
+  status?: 'pending' | 'completed';
 }

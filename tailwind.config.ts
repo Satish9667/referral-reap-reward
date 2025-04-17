@@ -64,9 +64,11 @@ export default {
 					ring: 'hsl(var(--sidebar-ring))'
 				},
 				brand: {
-					purple: '#9b87f5',
-					'purple-dark': '#7E69AB',
-					'purple-light': '#E5DEFF',
+					red: '#ea384c',
+					'red-dark': '#c41c2e',
+					'red-light': '#ff5a6c',
+					black: '#000000',
+					white: '#ffffff',
 				}
 			},
 			borderRadius: {

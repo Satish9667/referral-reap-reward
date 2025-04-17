@@ -17,7 +17,7 @@ const ShareReferral = () => {
 
   const createConfetti = () => {
     setShowConfetti(true);
-    const colors = ['#9b87f5', '#7E69AB', '#E5DEFF', '#D6BCFA'];
+    const colors = ['#ea384c', '#c41c2e', '#ff5a6c', '#ffffff'];
     
     // Create 50 confetti pieces
     for (let i = 0; i < 50; i++) {
@@ -77,9 +77,9 @@ const ShareReferral = () => {
   };
 
   return (
-    <Card className="w-full">
+    <Card className="w-full bg-card">
       <CardHeader>
-        <CardTitle>Share Your Referral</CardTitle>
+        <CardTitle className="text-foreground">Share Your Referral</CardTitle>
         <CardDescription>
           Invite friends and earn 10 points for each successful referral
         </CardDescription>
@@ -107,7 +107,8 @@ const ShareReferral = () => {
             <Input 
               readOnly 
               value={referralLink} 
-              onClick={(e) => (e.target as HTMLInputElement).select()} 
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+              className="bg-secondary"
             />
             <Button 
               onClick={() => copyToClipboard(referralLink)} 
@@ -119,7 +120,7 @@ const ShareReferral = () => {
         </div>
         
         <Button 
-          className="w-full" 
+          className="w-full bg-primary hover:bg-primary/90" 
           onClick={shareReferral}
         >
           <Share2 className="mr-2 h-4 w-4" />

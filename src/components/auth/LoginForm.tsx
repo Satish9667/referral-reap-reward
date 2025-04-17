@@ -30,10 +30,10 @@ const LoginForm = () => {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto shadow-lg">
+    <Card className="w-full max-w-md mx-auto shadow-lg bg-card">
       <CardHeader className="space-y-1">
         <div className="flex justify-center mb-2">
-          <LogIn size={28} className="text-brand-purple" />
+          <LogIn size={28} className="text-primary" />
         </div>
         <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
         <CardDescription className="text-center">
@@ -51,6 +51,7 @@ const LoginForm = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="bg-secondary"
             />
           </div>
           <div className="space-y-2">
@@ -63,6 +64,7 @@ const LoginForm = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="bg-secondary"
             />
           </div>
         </CardContent>
@@ -72,7 +74,7 @@ const LoginForm = () => {
           </Button>
           <div className="text-center text-sm">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-brand-purple hover:underline">
+            <Link to="/signup" className="text-primary hover:underline">
               Sign up
             </Link>
           </div>

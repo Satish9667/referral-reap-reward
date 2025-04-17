@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   email: string;
@@ -6,6 +5,7 @@ export interface User {
   referralCode: string;
   points: number;
   referredBy?: string;
+  password: string; // Added for basic auth
   createdAt?: string;
   updatedAt?: string;
 }

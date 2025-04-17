@@ -2,21 +2,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { User, Referral, RedemptionHistory } from '@/types';
-
-// Mock data for demo purposes
-const mockUsers: User[] = [
-  {
-    id: "user1",
-    email: "demo@example.com",
-    name: "Demo User",
-    referralCode: "DEMO123",
-    points: 50,
-  }
-];
-
-const mockReferrals: Referral[] = [];
-
-const mockRedemptions: RedemptionHistory[] = [];
+import { supabase } from '@/lib/supabase';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -44,11 +30,6 @@ export const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-const USERS_KEY = 'referral-app-users';
-const CURRENT_USER_KEY = 'referral-app-current-user';
-const REFERRALS_KEY = 'referral-app-referrals';
-const REDEMPTIONS_KEY = 'referral-app-redemptions';
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -56,45 +37,109 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Initialize data on first load
+  // Initialize and set up auth listener
   useEffect(() => {
-    const initializeData = () => {
+    const initializeAuth = async () => {
       try {
-        // Check if we have users in localStorage, if not, set default mock data
-        const storedUsers = localStorage.getItem(USERS_KEY);
-        if (!storedUsers) {
-          localStorage.setItem(USERS_KEY, JSON.stringify(mockUsers));
-        }
-
-        // Check if we have referrals in localStorage
-        const storedReferrals = localStorage.getItem(REFERRALS_KEY);
-        if (!storedReferrals) {
-          localStorage.setItem(REFERRALS_KEY, JSON.stringify(mockReferrals));
-        } else {
-          setReferrals(JSON.parse(storedReferrals));
-        }
-
-        // Check if we have redemptions in localStorage
-        const storedRedemptions = localStorage.getItem(REDEMPTIONS_KEY);
-        if (!storedRedemptions) {
-          localStorage.setItem(REDEMPTIONS_KEY, JSON.stringify(mockRedemptions));
-        } else {
-          setRedemptions(JSON.parse(storedRedemptions));
-        }
-
-        // Check if we have a current user in localStorage
-        const storedCurrentUser = localStorage.getItem(CURRENT_USER_KEY);
-        if (storedCurrentUser) {
-          setCurrentUser(JSON.parse(storedCurrentUser));
+        // Check if user is already authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          // Fetch user profile data
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (profile) {
+            setCurrentUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              name: profile.name || '',
+              referralCode: profile.referral_code || '',
+              points: profile.points || 0,
+              referredBy: profile.referred_by || undefined,
+            });
+          }
+          
+          // Fetch referrals
+          const { data: referralsData } = await supabase
+            .from('referrals')
+            .select('*')
+            .eq('referrer_id', session.user.id);
+            
+          if (referralsData) {
+            setReferrals(referralsData.map(r => ({
+              id: r.id,
+              referrerCode: r.referrer_code,
+              refereeEmail: r.referee_email,
+              date: r.created_at,
+              status: r.status,
+            })));
+          }
+          
+          // Fetch redemptions
+          const { data: redemptionsData } = await supabase
+            .from('redemptions')
+            .select('*')
+            .eq('user_id', session.user.id);
+            
+          if (redemptionsData) {
+            setRedemptions(redemptionsData.map(r => ({
+              id: r.id,
+              userId: r.user_id,
+              rewardId: r.reward_id,
+              rewardName: r.reward_name,
+              pointsCost: r.points_cost,
+              date: r.created_at,
+              status: r.status,
+            })));
+          }
         }
       } catch (error) {
-        console.error('Error initializing data:', error);
+        console.error('Error initializing auth:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    initializeData();
+    // Call the initialization function
+    initializeAuth();
+    
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        // Fetch user profile after sign in
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+          
+        if (profile) {
+          setCurrentUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            name: profile.name || '',
+            referralCode: profile.referral_code || '',
+            points: profile.points || 0,
+            referredBy: profile.referred_by || undefined,
+          });
+          
+          setLoading(false);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        setReferrals([]);
+        setRedemptions([]);
+      }
+    });
+
+    // Clean up subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const generateReferralCode = (name: string): string => {
@@ -106,30 +151,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      // In a real app, this would validate credentials against a backend
-      const usersString = localStorage.getItem(USERS_KEY);
-      if (!usersString) return false;
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       
-      const users: User[] = JSON.parse(usersString);
-      const user = users.find(u => u.email === email);
-      
-      if (user) {
-        setCurrentUser(user);
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+      if (error) {
         toast({
-          title: "Logged in successfully!",
-          description: `Welcome back, ${user.name}!`,
+          title: "Login failed",
+          description: error.message,
+          variant: "destructive",
         });
-        return true;
+        return false;
       }
       
       toast({
-        title: "Login failed",
-        description: "Invalid email or password",
-        variant: "destructive",
+        title: "Logged in successfully!",
+        description: "Welcome back!",
       });
-      return false;
-    } catch (error) {
+      return true;
+    } catch (error: any) {
       console.error('Error logging in:', error);
       toast({
         title: "Login error",
@@ -142,71 +180,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = async (email: string, name: string, password: string, referralCode?: string): Promise<boolean> => {
     try {
-      // In a real app, this would create an account in a backend
-      const usersString = localStorage.getItem(USERS_KEY);
-      if (!usersString) return false;
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: {
+            name,
+          }
+        }
+      });
       
-      const users: User[] = JSON.parse(usersString);
-      
-      // Check if user already exists
-      if (users.some(u => u.email === email)) {
+      if (authError || !authData.user) {
         toast({
           title: "Signup failed",
-          description: "Email already in use",
+          description: authError?.message || "Failed to create account",
           variant: "destructive",
         });
         return false;
       }
-
-      // Create new user
-      const newUser: User = {
-        id: `user${Date.now()}`,
-        email,
-        name,
-        referralCode: generateReferralCode(name),
-        points: 0,
-      };
-
+      
+      const userId = authData.user.id;
+      const newReferralCode = generateReferralCode(name);
+      let initialPoints = 0;
+      let referrerId = null;
+      
       // Check if a valid referral code was provided
       if (referralCode) {
-        const referrer = users.find(u => u.referralCode === referralCode);
+        const { data: referrerData } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('referral_code', referralCode)
+          .single();
         
-        if (referrer) {
-          // Make sure user isn't referring themselves with a fake code
-          if (referrer.email === email) {
-            toast({
-              title: "Invalid referral",
-              description: "You cannot refer yourself",
-              variant: "destructive",
-            });
-            return false;
-          }
-
+        if (referrerData) {
+          referrerId = referrerData.id;
+          initialPoints = 5; // Bonus points for being referred
+          
           // Add referral record
-          const newReferral: Referral = {
-            id: `ref${Date.now()}`,
-            referrerCode: referralCode,
-            refereeEmail: email,
-            date: new Date().toISOString(),
-          };
-          
-          const updatedReferrals = [...referrals, newReferral];
-          setReferrals(updatedReferrals);
-          localStorage.setItem(REFERRALS_KEY, JSON.stringify(updatedReferrals));
-          
-          // Update referrer's points
-          const updatedUsers = users.map(u => {
-            if (u.id === referrer.id) {
-              return { ...u, points: u.points + 10 };
-            }
-            return u;
+          await supabase.from('referrals').insert({
+            referrer_id: referrerId,
+            referee_id: userId,
+            referrer_code: referralCode,
+            referee_email: email,
           });
           
-          // Add welcome points to new user
-          newUser.points = 5;
-          newUser.referredBy = referrer.id;
-          
-          localStorage.setItem(USERS_KEY, JSON.stringify([...updatedUsers, newUser]));
+          // Update referrer's points
+          await supabase.rpc('increment_user_points', {
+            user_id: referrerId,
+            points_to_add: 10
+          });
           
           toast({
             title: "Welcome bonus!",
@@ -218,22 +241,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             description: "The referral code you entered is not valid",
             variant: "destructive",
           });
-          localStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
         }
-      } else {
-        // No referral code, just add the user
-        localStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
       }
-
-      setCurrentUser(newUser);
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
+      
+      // Create user profile
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: userId,
+        email,
+        name,
+        referral_code: newReferralCode,
+        points: initialPoints,
+        referred_by: referrerId,
+      });
+      
+      if (profileError) {
+        console.error('Error creating profile:', profileError);
+        toast({
+          title: "Profile setup error",
+          description: "Account created but profile setup failed",
+          variant: "destructive",
+        });
+        return true; // Auth part succeeded, so return true
+      }
       
       toast({
         title: "Account created!",
         description: "Welcome to the referral program!",
       });
+      
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing up:', error);
       toast({
         title: "Signup error",
@@ -244,48 +281,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem(CURRENT_USER_KEY);
-    toast({
-      title: "Logged out",
-      description: "You've been successfully logged out",
-    });
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Logged out",
+        description: "You've been successfully logged out",
+      });
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Logout error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
-  const addRedemption = (redemptionData: Omit<RedemptionHistory, 'id' | 'date'>) => {
+  const addRedemption = async (redemptionData: Omit<RedemptionHistory, 'id' | 'date'>) => {
     try {
       if (!currentUser) return;
-
-      const newRedemption: RedemptionHistory = {
-        ...redemptionData,
-        id: `redeem${Date.now()}`,
-        date: new Date().toISOString(),
-      };
-
-      // Update user points
-      const usersString = localStorage.getItem(USERS_KEY);
-      if (usersString) {
-        const users: User[] = JSON.parse(usersString);
-        const updatedUsers = users.map(u => {
-          if (u.id === currentUser.id) {
-            const updatedPoints = u.points - redemptionData.pointsCost;
-            // Update current user in state
-            const updatedUser = { ...u, points: updatedPoints };
-            setCurrentUser(updatedUser);
-            localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
-            return updatedUser;
-          }
-          return u;
+      
+      // Insert redemption record
+      const { data: redemptionRecord, error: redemptionError } = await supabase
+        .from('redemptions')
+        .insert({
+          user_id: currentUser.id,
+          reward_id: redemptionData.rewardId,
+          reward_name: redemptionData.rewardName,
+          points_cost: redemptionData.pointsCost,
+          status: 'completed',
+        })
+        .select()
+        .single();
+      
+      if (redemptionError) {
+        toast({
+          title: "Redemption error",
+          description: "Failed to record redemption",
+          variant: "destructive",
         });
-        localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
+        return;
       }
-
-      // Add to redemption history
-      const updatedRedemptions = [...redemptions, newRedemption];
-      setRedemptions(updatedRedemptions);
-      localStorage.setItem(REDEMPTIONS_KEY, JSON.stringify(updatedRedemptions));
-
+      
+      // Update user points
+      const { error: pointsError } = await supabase.rpc('decrement_user_points', {
+        user_id: currentUser.id,
+        points_to_subtract: redemptionData.pointsCost
+      });
+      
+      if (pointsError) {
+        toast({
+          title: "Points update error",
+          description: "Failed to update points balance",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Update current user state
+      if (currentUser) {
+        setCurrentUser({
+          ...currentUser,
+          points: currentUser.points - redemptionData.pointsCost
+        });
+      }
+      
+      // Update redemptions state
+      const newRedemption: RedemptionHistory = {
+        id: redemptionRecord.id,
+        userId: redemptionRecord.user_id,
+        rewardId: redemptionRecord.reward_id,
+        rewardName: redemptionRecord.reward_name,
+        pointsCost: redemptionRecord.points_cost,
+        date: redemptionRecord.created_at,
+        status: redemptionRecord.status,
+      };
+      
+      setRedemptions(prev => [...prev, newRedemption]);
+      
       toast({
         title: "Reward redeemed!",
         description: `You've successfully redeemed ${redemptionData.rewardName}`,
